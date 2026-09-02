@@ -23,6 +23,7 @@ public class Appointment implements Serializable {
     private String patientName;
     private String patientAddress;
     private String patientContact;
+    private String patientEmail;
     private String dentistName;
     private String dentistSpecialization;
     private String treatmentName;
@@ -146,6 +147,14 @@ public class Appointment implements Serializable {
 
     public void setPatientContact(String patientContact) {
         this.patientContact = patientContact;
+    }
+
+    public String getPatientEmail() {
+        return patientEmail;
+    }
+
+    public void setPatientEmail(String patientEmail) {
+        this.patientEmail = patientEmail;
     }
 
     public String getDentistName() {

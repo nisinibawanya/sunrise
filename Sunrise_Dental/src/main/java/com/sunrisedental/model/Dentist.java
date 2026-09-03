@@ -1,6 +1,7 @@
 package com.sunrisedental.model;
 
 import java.io.Serializable;
+import java.sql.Timestamp;
 
 public class Dentist implements Serializable {
     private static final long serialVersionUID = 1L;
@@ -12,6 +13,7 @@ public class Dentist implements Serializable {
     private String email;
     private String roomNo;
     private boolean active;
+    private Timestamp updatedAt;
 
     public Dentist() {}
 
@@ -79,5 +81,13 @@ public class Dentist implements Serializable {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public Timestamp getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Timestamp updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

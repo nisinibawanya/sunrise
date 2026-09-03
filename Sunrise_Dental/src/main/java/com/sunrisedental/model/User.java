@@ -12,17 +12,19 @@ public class User implements Serializable {
     private String fullName;
     private String role;
     private String email;
+    private String invoiceNo;
     private Timestamp createdAt;
 
     public User() {}
 
-    public User(int id, String username, String password, String fullName, String role, String email, Timestamp createdAt) {
+    public User(int id, String username, String password, String fullName, String role, String email, String invoiceNo, Timestamp createdAt) {
         this.id = id;
         this.username = username;
         this.password = password;
         this.fullName = fullName;
         this.role = role;
         this.email = email;
+        this.invoiceNo = invoiceNo;
         this.createdAt = createdAt;
     }
 
@@ -72,6 +74,14 @@ public class User implements Serializable {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getInvoiceNo() {
+        return invoiceNo != null ? invoiceNo : "INV-1001";
+    }
+
+    public void setInvoiceNo(String invoiceNo) {
+        this.invoiceNo = invoiceNo;
     }
 
     public Timestamp getCreatedAt() {

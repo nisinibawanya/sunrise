@@ -4,6 +4,8 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Bill implements Serializable {
     private static final long serialVersionUID = 1L;
@@ -18,7 +20,10 @@ public class Bill implements Serializable {
     private BigDecimal discount;
     private BigDecimal totalAmount;
     private String paymentStatus;
+    private String userInvoiceNo;
+    private String billedBy;
     private Timestamp paidAt;
+    private Timestamp createdAt;
 
     // Joined fields for display/receipt
     private String appointmentNo;
@@ -30,11 +35,16 @@ public class Bill implements Serializable {
     private Date appointmentDate;
     private String appointmentTime;
 
+    private String paymentMethod = "Cash";
+    private BigDecimal amountPaid;
+    private BigDecimal balanceDue;
+    private List<BillItem> items = new ArrayList<>();
+
     public Bill() {}
 
     public Bill(int id, String billNo, int appointmentId, BigDecimal consultationFee, BigDecimal treatmentFee,
                 BigDecimal materialFee, BigDecimal subTotal, BigDecimal discount, BigDecimal totalAmount,
-                String paymentStatus, Timestamp paidAt) {
+                String paymentStatus, String userInvoiceNo, String billedBy, Timestamp paidAt) {
         this.id = id;
         this.billNo = billNo;
         this.appointmentId = appointmentId;
@@ -45,6 +55,8 @@ public class Bill implements Serializable {
         this.discount = discount;
         this.totalAmount = totalAmount;
         this.paymentStatus = paymentStatus;
+        this.userInvoiceNo = userInvoiceNo;
+        this.billedBy = billedBy;
         this.paidAt = paidAt;
     }
 
@@ -128,12 +140,36 @@ public class Bill implements Serializable {
         this.paymentStatus = paymentStatus;
     }
 
+    public String getUserInvoiceNo() {
+        return userInvoiceNo;
+    }
+
+    public void setUserInvoiceNo(String userInvoiceNo) {
+        this.userInvoiceNo = userInvoiceNo;
+    }
+
+    public String getBilledBy() {
+        return billedBy;
+    }
+
+    public void setBilledBy(String billedBy) {
+        this.billedBy = billedBy;
+    }
+
     public Timestamp getPaidAt() {
         return paidAt;
     }
 
     public void setPaidAt(Timestamp paidAt) {
         this.paidAt = paidAt;
+    }
+
+    public Timestamp getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Timestamp createdAt) {
+        this.createdAt = createdAt;
     }
 
     public String getAppointmentNo() {
@@ -198,5 +234,84 @@ public class Bill implements Serializable {
 
     public void setAppointmentTime(String appointmentTime) {
         this.appointmentTime = appointmentTime;
+    }
+
+    public String getPaymentMethod() {
+        return paymentMethod != null ? paymentMethod : "Cash";
+    }
+
+    public void setPaymentMethod(String paymentMethod) {
+        this.paymentMethod = paymentMethod;
+    }
+
+    public BigDecimal getAmountPaid() {
+        if (amountPaid != null) {
+            return amountPaid;
+        }
+        BigDecimal tot = totalAmount != null ? totalAmount : BigDecimal.ZERO;
+        if ("Paid".equalsIgnoreCase(paymentStatus)) {
+            return tot;
+        } else if ("Pending".equalsIgnoreCase(paymentStatus)) {
+            return BigDecimal.ZERO;
+        } else if ("Partially Paid".equalsIgnoreCase(paymentStatus)) {
+            return tot.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
+        }
+        return tot;
+    }
+
+    public void setAmountPaid(BigDecimal amountPaid) {
+        this.amountPaid = amountPaid;
+    }
+
+    public BigDecimal getBalanceDue() {
+        if (balanceDue != null) {
+            return balanceDue;
+        }
+        BigDecimal tot = totalAmount != null ? totalAmount : BigDecimal.ZERO;
+        BigDecimal paid = getAmountPaid();
+        BigDecimal due = tot.subtract(paid);
+        return due.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : due;
+    }
+
+    public void setBalanceDue(BigDecimal balanceDue) {
+        this.balanceDue = balanceDue;
+    }
+
+    public List<BillItem> getItems() {
+        if (items == null) {
+            items = new ArrayList<>();
+        }
+        return items;
+    }
+
+    public void setItems(List<BillItem> items) {
+        this.items = items != null ? items : new ArrayList<>();
+    }
+
+    public void addItem(BillItem item) {
+        if (this.items == null) {
+            this.items = new ArrayList<>();
+        }
+        if (item != null) {
+            this.items.add(item);
+        }
+    }
+
+    /**
+     * Helper to get a concise formatted string of all services/treatments on this invoice.
+     */
+    public String getServicesSummary() {
+        if (items != null && !items.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < items.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(items.get(i).getTreatmentName());
+                if (items.get(i).getQuantity() > 1) {
+                    sb.append(" (x").append(items.get(i).getQuantity()).append(")");
+                }
+            }
+            return sb.toString();
+        }
+        return treatmentName != null ? treatmentName : "General Dental Service";
     }
 }

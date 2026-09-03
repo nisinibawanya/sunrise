@@ -10,6 +10,7 @@ public class Treatment implements Serializable {
     private String name;
     private BigDecimal cost;
     private String description;
+    private int usageCount;
 
     public Treatment() {}
 
@@ -18,6 +19,14 @@ public class Treatment implements Serializable {
         this.name = name;
         this.cost = cost;
         this.description = description;
+    }
+
+    public Treatment(int id, String name, BigDecimal cost, String description, int usageCount) {
+        this.id = id;
+        this.name = name;
+        this.cost = cost;
+        this.description = description;
+        this.usageCount = usageCount;
     }
 
     public int getId() {
@@ -50,5 +59,13 @@ public class Treatment implements Serializable {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public int getUsageCount() {
+        return usageCount;
+    }
+
+    public void setUsageCount(int usageCount) {
+        this.usageCount = usageCount;
     }
 }

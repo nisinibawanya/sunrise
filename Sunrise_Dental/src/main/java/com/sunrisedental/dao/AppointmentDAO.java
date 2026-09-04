@@ -104,6 +104,90 @@ public class AppointmentDAO {
         }
     }
 
+    public boolean hasPatientConflict(int patientId, Date appointmentDate, String appointmentTime, Integer excludeAppointmentId) {
+        if (patientId <= 0 || appointmentDate == null || appointmentTime == null) {
+            return false;
+        }
+
+        StringBuilder sql = new StringBuilder(
+            "SELECT COUNT(*) FROM appointments WHERE patient_id = ? AND appointment_date = ? " +
+            "AND TRIM(LOWER(appointment_time)) = TRIM(LOWER(?)) " +
+            "AND (status IS NULL OR status != 'Cancelled') "
+        );
+
+        if (excludeAppointmentId != null && excludeAppointmentId > 0) {
+            sql.append("AND id != ? ");
+        }
+
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+
+        try {
+            conn = DBConnection.getConnection();
+            ps = conn.prepareStatement(sql.toString());
+            ps.setInt(1, patientId);
+            ps.setDate(2, appointmentDate);
+            ps.setString(3, appointmentTime.trim());
+
+            if (excludeAppointmentId != null && excludeAppointmentId > 0) {
+                ps.setInt(4, excludeAppointmentId);
+            }
+
+            rs = ps.executeQuery();
+            if (rs.next()) {
+                return rs.getInt(1) > 0;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(rs, ps, conn);
+        }
+        return false;
+    }
+
+    public boolean hasDentistConflict(int dentistId, Date appointmentDate, String appointmentTime, Integer excludeAppointmentId) {
+        if (dentistId <= 0 || appointmentDate == null || appointmentTime == null) {
+            return false;
+        }
+
+        StringBuilder sql = new StringBuilder(
+            "SELECT COUNT(*) FROM appointments WHERE dentist_id = ? AND appointment_date = ? " +
+            "AND TRIM(LOWER(appointment_time)) = TRIM(LOWER(?)) " +
+            "AND (status IS NULL OR status != 'Cancelled') "
+        );
+
+        if (excludeAppointmentId != null && excludeAppointmentId > 0) {
+            sql.append("AND id != ? ");
+        }
+
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+
+        try {
+            conn = DBConnection.getConnection();
+            ps = conn.prepareStatement(sql.toString());
+            ps.setInt(1, dentistId);
+            ps.setDate(2, appointmentDate);
+            ps.setString(3, appointmentTime.trim());
+
+            if (excludeAppointmentId != null && excludeAppointmentId > 0) {
+                ps.setInt(4, excludeAppointmentId);
+            }
+
+            rs = ps.executeQuery();
+            if (rs.next()) {
+                return rs.getInt(1) > 0;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(rs, ps, conn);
+        }
+        return false;
+    }
+
     public boolean updateAppointment(Appointment appt) {
         String sql = "UPDATE appointments SET patient_id = ?, dentist_id = ?, treatment_id = ?, appointment_date = ?, appointment_time = ?, status = ?, notes = ? " +
                      "WHERE id = ?";

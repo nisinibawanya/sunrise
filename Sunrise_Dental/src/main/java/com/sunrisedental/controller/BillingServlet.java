@@ -100,7 +100,7 @@ public class BillingServlet extends HttpServlet {
             bill = new Bill();
             bill.setBillNo(billDAO.getNextBillNo());
             bill.setAppointmentId(appointment.getId());
-            bill.setPaymentMethod("Cash");
+            bill.setPaymentMethod(null);
             bill.setPaymentStatus("Paid");
             bill.setUserInvoiceNo(defaultReceptionistId);
             bill.setBilledBy(defaultBilledBy);
@@ -183,22 +183,17 @@ public class BillingServlet extends HttpServlet {
             throws ServletException, IOException {
         try {
             int appointmentId = Integer.parseInt(request.getParameter("appointmentId"));
+            Appointment appt = appointmentDAO.getAppointmentById(appointmentId);
+            String apptNo = (appt != null && appt.getAppointmentNo() != null) ? appt.getAppointmentNo().trim() : "";
+            String redirectBase = request.getContextPath() + "/billing" + (!apptNo.isEmpty() ? "?no=" + apptNo : "");
+            String errSep = (!apptNo.isEmpty() ? "&" : "?");
+
             String billNo = request.getParameter("billNo");
             String userInvoiceNo = request.getParameter("userInvoiceNo"); // Receptionist ID
             String billedBy = request.getParameter("billedBy");
             String paymentMethod = request.getParameter("paymentMethod");
             String paymentStatus = request.getParameter("paymentStatus");
-
             String discountStr = request.getParameter("discount");
-            BigDecimal discount = BigDecimal.ZERO;
-            if (discountStr != null && !discountStr.trim().isEmpty()) {
-                try {
-                    discount = new BigDecimal(discountStr.trim());
-                    if (discount.compareTo(BigDecimal.ZERO) < 0) {
-                        discount = BigDecimal.ZERO;
-                    }
-                } catch (NumberFormatException ignored) {}
-            }
 
             // Parse Line Items
             String[] itemTreatmentIds = request.getParameterValues("itemTreatmentId");
@@ -207,7 +202,7 @@ public class BillingServlet extends HttpServlet {
             String[] itemUnitPrices = request.getParameterValues("itemUnitPrice");
 
             if (itemTreatmentNames == null || itemTreatmentNames.length == 0) {
-                response.sendRedirect(request.getContextPath() + "/billing?error=no_items");
+                response.sendRedirect(redirectBase + errSep + "error=no_items");
                 return;
             }
 
@@ -254,17 +249,54 @@ public class BillingServlet extends HttpServlet {
             }
 
             if (items.isEmpty()) {
-                response.sendRedirect(request.getContextPath() + "/billing?error=no_valid_items");
+                response.sendRedirect(redirectBase + errSep + "error=no_valid_items");
+                return;
+            }
+
+            // 1. VALIDATION: Discount Validation (Must not be negative or exceed subtotal)
+            BigDecimal discount = BigDecimal.ZERO;
+            if (discountStr == null || discountStr.trim().isEmpty()) {
+                response.sendRedirect(redirectBase + errSep + "error=invalid_discount");
+                return;
+            }
+            try {
+                discount = new BigDecimal(discountStr.trim());
+            } catch (NumberFormatException e) {
+                response.sendRedirect(redirectBase + errSep + "error=invalid_discount");
+                return;
+            }
+
+            if (discount.compareTo(BigDecimal.ZERO) < 0) {
+                response.sendRedirect(redirectBase + errSep + "error=negative_discount");
                 return;
             }
 
             if (discount.compareTo(subTotal) > 0) {
-                discount = subTotal; // Cap discount to subtotal
+                response.sendRedirect(redirectBase + errSep + "error=discount_exceeds_subtotal");
+                return;
             }
 
             BigDecimal totalAmount = subTotal.subtract(discount);
             if (totalAmount.compareTo(BigDecimal.ZERO) < 0) {
-                totalAmount = BigDecimal.ZERO;
+                response.sendRedirect(redirectBase + errSep + "error=discount_exceeds_subtotal");
+                return;
+            }
+
+            // 2. VALIDATION: Payment Method Selection Validation (Must be explicitly selected)
+            if (paymentMethod == null || paymentMethod.trim().isEmpty()) {
+                response.sendRedirect(redirectBase + errSep + "error=missing_payment_method");
+                return;
+            }
+
+            String trimmedPaymentMethod = paymentMethod.trim();
+            boolean isValidPaymentMethod = "Cash".equalsIgnoreCase(trimmedPaymentMethod) ||
+                                           "Credit / Debit Card".equalsIgnoreCase(trimmedPaymentMethod) ||
+                                           "Bank Transfer".equalsIgnoreCase(trimmedPaymentMethod) ||
+                                           "Insurance".equalsIgnoreCase(trimmedPaymentMethod);
+
+            if (!isValidPaymentMethod) {
+                response.sendRedirect(redirectBase + errSep + "error=invalid_payment_method");
+                return;
             }
 
             if (billNo == null || billNo.trim().isEmpty()) {
@@ -277,9 +309,6 @@ public class BillingServlet extends HttpServlet {
             if (billedBy == null || billedBy.trim().isEmpty()) {
                 billedBy = "Receptionist";
             }
-            if (paymentMethod == null || paymentMethod.trim().isEmpty()) {
-                paymentMethod = "Cash";
-            }
             if (paymentStatus == null || paymentStatus.trim().isEmpty()) {
                 paymentStatus = "Paid";
             }
@@ -290,7 +319,7 @@ public class BillingServlet extends HttpServlet {
             bill.setSubTotal(subTotal);
             bill.setDiscount(discount);
             bill.setTotalAmount(totalAmount);
-            bill.setPaymentMethod(paymentMethod.trim());
+            bill.setPaymentMethod(trimmedPaymentMethod);
             bill.setPaymentStatus(paymentStatus.trim());
             bill.setUserInvoiceNo(userInvoiceNo.trim());
             bill.setBilledBy(billedBy.trim());

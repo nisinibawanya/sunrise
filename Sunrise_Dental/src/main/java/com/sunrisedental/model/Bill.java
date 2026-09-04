@@ -35,7 +35,7 @@ public class Bill implements Serializable {
     private Date appointmentDate;
     private String appointmentTime;
 
-    private String paymentMethod = "Cash";
+    private String paymentMethod;
     private BigDecimal amountPaid;
     private BigDecimal balanceDue;
     private List<BillItem> items = new ArrayList<>();
@@ -237,7 +237,7 @@ public class Bill implements Serializable {
     }
 
     public String getPaymentMethod() {
-        return paymentMethod != null ? paymentMethod : "Cash";
+        return paymentMethod;
     }
 
     public void setPaymentMethod(String paymentMethod) {

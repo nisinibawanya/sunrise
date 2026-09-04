@@ -6,6 +6,7 @@ import com.sunrisedental.dao.PatientDAO;
 import com.sunrisedental.dao.TreatmentDAO;
 import com.sunrisedental.model.Appointment;
 import com.sunrisedental.model.Dentist;
+import com.sunrisedental.model.Patient;
 import com.sunrisedental.model.Treatment;
 import com.sunrisedental.util.EmailService;
 import jakarta.servlet.ServletException;
@@ -65,8 +66,12 @@ public class AppointmentServlet extends HttpServlet {
 
     private void showNewForm(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        String nextApptNo = appointmentDAO.getNextAppointmentNo();
-        List<Dentist> dentists = dentistDAO.getAllDentists();
+        String nextApptNo = (String) request.getAttribute("enteredApptNo");
+        if (nextApptNo == null || nextApptNo.trim().isEmpty()) {
+            nextApptNo = appointmentDAO.getNextAppointmentNo();
+        }
+
+        List<Dentist> dentists = dentistDAO.getActiveDentists();
         List<Treatment> treatments = treatmentDAO.getAllTreatments();
 
         request.setAttribute("nextApptNo", nextApptNo);
@@ -186,6 +191,22 @@ public class AppointmentServlet extends HttpServlet {
         }
     }
 
+    private void preserveNewFormData(HttpServletRequest request, String apptNo, String patientName,
+                                     String address, String contactNumber, String patientEmail,
+                                     int dentistId, int treatmentId, String apptDateStr,
+                                     String apptTime, String notes) {
+        request.setAttribute("enteredApptNo", apptNo);
+        request.setAttribute("enteredPatientName", patientName);
+        request.setAttribute("enteredAddress", address);
+        request.setAttribute("enteredContactNumber", contactNumber);
+        request.setAttribute("enteredPatientEmail", patientEmail);
+        request.setAttribute("enteredDentistId", dentistId);
+        request.setAttribute("enteredTreatmentId", treatmentId);
+        request.setAttribute("enteredApptDate", apptDateStr);
+        request.setAttribute("enteredApptTime", apptTime);
+        request.setAttribute("enteredNotes", notes);
+    }
+
     private void createAppointment(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         try {
@@ -204,9 +225,51 @@ public class AppointmentServlet extends HttpServlet {
                 apptNo = appointmentDAO.getNextAppointmentNo();
             }
 
+            if (dentistIdStr == null || treatmentIdStr == null || patientName == null || 
+                contactNumber == null || apptDateStr == null || apptTime == null ||
+                patientName.trim().isEmpty() || contactNumber.trim().isEmpty()) {
+                request.setAttribute("errorMessage", "⚠️ Validation Error: Please fill in all required appointment fields.");
+                showNewForm(request, response);
+                return;
+            }
+
             Date apptDate = Date.valueOf(apptDateStr);
             int dentistId = Integer.parseInt(dentistIdStr);
             int treatmentId = Integer.parseInt(treatmentIdStr);
+
+            // 1. VALIDATION: Check Inactive Dentist Status
+            Dentist selectedDentist = dentistDAO.getDentistById(dentistId);
+            if (selectedDentist == null || !selectedDentist.isActive()) {
+                request.setAttribute("errorMessage", "⚠️ This dentist is currently inactive and cannot accept appointments.");
+                preserveNewFormData(request, apptNo, patientName, address, contactNumber, patientEmail, dentistId, treatmentId, apptDateStr, apptTime, notes);
+                showNewForm(request, response);
+                return;
+            }
+
+            // 2. VALIDATION: Check Patient Double Booking (Same Date and Time)
+            Patient existingPatient = patientDAO.getPatientByNameAndContact(patientName.trim(), contactNumber.trim());
+            if (existingPatient != null) {
+                if (appointmentDAO.hasPatientConflict(existingPatient.getId(), apptDate, apptTime.trim(), null)) {
+                    request.setAttribute("errorMessage", "⚠️ Validation Error: Patient '" + patientName.trim() + 
+                            "' already has an active appointment scheduled on " + apptDateStr + " at " + apptTime.trim() + 
+                            ". Please choose a different date or time slot.");
+                    preserveNewFormData(request, apptNo, patientName, address, contactNumber, patientEmail, dentistId, treatmentId, apptDateStr, apptTime, notes);
+                    showNewForm(request, response);
+                    return;
+                }
+            }
+
+            // 2. VALIDATION: Check Dentist Double Booking (Same Date and Time)
+            if (appointmentDAO.hasDentistConflict(dentistId, apptDate, apptTime.trim(), null)) {
+                Dentist dentist = dentistDAO.getDentistById(dentistId);
+                String dName = dentist != null ? dentist.getName() : "The selected dentist";
+                request.setAttribute("errorMessage", "⚠️ Validation Error: " + dName + 
+                        " already has an appointment assigned on " + apptDateStr + " at " + apptTime.trim() + 
+                        ". Please select another dentist or choose a different time slot.");
+                preserveNewFormData(request, apptNo, patientName, address, contactNumber, patientEmail, dentistId, treatmentId, apptDateStr, apptTime, notes);
+                showNewForm(request, response);
+                return;
+            }
 
             // Find or create patient with email
             int patientId = patientDAO.findOrCreatePatient(patientName, address, contactNumber, patientEmail, apptDate);
@@ -242,6 +305,7 @@ public class AppointmentServlet extends HttpServlet {
                 response.sendRedirect(request.getContextPath() + "/appointments?action=search&no=" + apptNo + "&success=created");
             } else {
                 request.setAttribute("errorMessage", "Could not save appointment. Please verify details.");
+                preserveNewFormData(request, apptNo, patientName, address, contactNumber, patientEmail, dentistId, treatmentId, apptDateStr, apptTime, notes);
                 showNewForm(request, response);
             }
         } catch (Exception e) {
@@ -267,6 +331,25 @@ public class AppointmentServlet extends HttpServlet {
             String apptTime = request.getParameter("appointmentTime");
             String status = request.getParameter("status");
             String notes = request.getParameter("notes");
+
+            // 1. Check Inactive Dentist
+            Dentist selectedDentist = dentistDAO.getDentistById(dentistId);
+            if (selectedDentist == null || !selectedDentist.isActive()) {
+                response.sendRedirect(request.getContextPath() + "/appointments?action=edit&id=" + id + "&error=inactive_dentist");
+                return;
+            }
+
+            // 2. Check Patient Conflict (exclude current appt id)
+            if (appointmentDAO.hasPatientConflict(patientId, apptDate, apptTime != null ? apptTime.trim() : "", id)) {
+                response.sendRedirect(request.getContextPath() + "/appointments?action=edit&id=" + id + "&error=patient_conflict");
+                return;
+            }
+
+            // 2. Check Dentist Conflict (exclude current appt id)
+            if (appointmentDAO.hasDentistConflict(dentistId, apptDate, apptTime != null ? apptTime.trim() : "", id)) {
+                response.sendRedirect(request.getContextPath() + "/appointments?action=edit&id=" + id + "&error=dentist_conflict");
+                return;
+            }
 
             // Update patient details with email
             patientDAO.updatePatientDetails(patientId, address, contactNumber, patientEmail, apptDate);

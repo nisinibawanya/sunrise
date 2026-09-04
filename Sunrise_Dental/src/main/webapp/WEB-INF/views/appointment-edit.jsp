@@ -6,6 +6,21 @@
     Appointment appt = (Appointment) request.getAttribute("appointment");
     List<Dentist> dentists = (List<Dentist>) request.getAttribute("dentists");
     List<Treatment> treatments = (List<Treatment>) request.getAttribute("treatments");
+
+    String errorParam = request.getParameter("error");
+    String errorMessage = (String) request.getAttribute("errorMessage");
+
+    if (errorMessage == null && errorParam != null) {
+        if ("patient_conflict".equals(errorParam)) {
+            errorMessage = "⚠️ Validation Error: This patient already has another active appointment scheduled on this date and time.";
+        } else if ("dentist_conflict".equals(errorParam)) {
+            errorMessage = "⚠️ Validation Error: The selected dentist already has another patient appointment scheduled on this date and time.";
+        } else if ("inactive_dentist".equals(errorParam)) {
+            errorMessage = "⚠️ Validation Error: This dentist is currently inactive and cannot accept appointments.";
+        } else if ("update_failed".equals(errorParam)) {
+            errorMessage = "⚠️ Error: Could not update appointment. Please verify details.";
+        }
+    }
 %>
 <!DOCTYPE html>
 <html lang="en">
@@ -34,6 +49,12 @@
             <div class="page-header">
                 <h1 class="page-title">Edit Appointment <%= appt.getAppointmentNo() %></h1>
             </div>
+
+            <% if (errorMessage != null && !errorMessage.isEmpty()) { %>
+                <div class="alert alert-danger" style="margin-bottom: 20px; font-weight: 500;">
+                    <span><%= errorMessage %></span>
+                </div>
+            <% } %>
 
             <div class="card">
                 <form action="<%= request.getContextPath() %>/appointments" method="POST">
@@ -77,9 +98,12 @@
                                 <label class="form-label">Dentist Name <span class="required">*</span></label>
                                 <select name="dentistId" class="form-control" required>
                                     <% if (dentists != null) { 
-                                        for (Dentist d : dentists) { %>
-                                        <option value="<%= d.getId() %>" <%= d.getId() == appt.getDentistId() ? "selected" : "" %>>
-                                            <%= d.getName() %> (<%= d.getSpecialization() %>)
+                                        for (Dentist d : dentists) { 
+                                            boolean isCurrent = (d.getId() == appt.getDentistId());
+                                            boolean isInactive = !d.isActive();
+                                    %>
+                                        <option value="<%= d.getId() %>" <%= isCurrent ? "selected" : "" %> <%= (isInactive && !isCurrent) ? "disabled" : "" %>>
+                                            <%= d.getName() %> (<%= d.getSpecialization() %>)<%= isInactive ? " - [Inactive]" : "" %>
                                         </option>
                                     <%   } 
                                        } %>
@@ -138,3 +162,5 @@
 
 <jsp:include page="includes/exit-modal.jsp" />
 <jsp:include page="includes/footer.jsp" />
+</body>
+</html>

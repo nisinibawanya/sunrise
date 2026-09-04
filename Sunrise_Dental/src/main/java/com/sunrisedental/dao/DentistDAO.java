@@ -36,6 +36,30 @@ public class DentistDAO {
         return list;
     }
 
+    public List<Dentist> getActiveDentists() {
+        List<Dentist> list = new ArrayList<>();
+        String sql = "SELECT * FROM dentists WHERE is_active = TRUE ORDER BY name ASC";
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+
+        try {
+            conn = DBConnection.getConnection();
+            ps = conn.prepareStatement(sql);
+            rs = ps.executeQuery();
+
+            while (rs.next()) {
+                Dentist dentist = mapDentist(rs);
+                list.add(dentist);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(rs, ps, conn);
+        }
+        return list;
+    }
+
     public Dentist getDentistById(int id) {
         String sql = "SELECT * FROM dentists WHERE id = ?";
         Connection conn = null;

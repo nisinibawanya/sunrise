@@ -92,14 +92,30 @@
             </div>
 
             <!-- Flash Error Messages -->
-            <% if ("no_items".equals(errorParam) || "no_valid_items".equals(errorParam)) { %>
-                <div class="alert alert-danger"><span>⚠️</span> <span>Please add at least one valid service or treatment before generating the invoice.</span></div>
-            <% } else if ("discount_too_high".equals(errorParam)) { %>
-                <div class="alert alert-danger"><span>⚠️</span> <span>Discount cannot exceed the invoice subtotal.</span></div>
+            <% if ("discount_too_high".equals(errorParam) || "discount_exceeds_subtotal".equals(errorParam)) { %>
+                <div class="alert alert-danger" style="margin-bottom: 20px; font-weight: 500;">
+                    <span>⚠️ Validation Error: Discount cannot exceed the applicable subtotal amount. The final bill total must never be negative.</span>
+                </div>
+            <% } else if ("negative_discount".equals(errorParam) || "invalid_discount".equals(errorParam)) { %>
+                <div class="alert alert-danger" style="margin-bottom: 20px; font-weight: 500;">
+                    <span>⚠️ Validation Error: Please enter a valid non-negative discount amount.</span>
+                </div>
+            <% } else if ("missing_payment_method".equals(errorParam) || "invalid_payment_method".equals(errorParam)) { %>
+                <div class="alert alert-danger" style="margin-bottom: 20px; font-weight: 500;">
+                    <span>⚠️ Validation Error: Payment information must be selected before the bill can be completed. Please select a valid payment method.</span>
+                </div>
+            <% } else if ("no_items".equals(errorParam) || "no_valid_items".equals(errorParam)) { %>
+                <div class="alert alert-danger" style="margin-bottom: 20px; font-weight: 500;">
+                    <span>⚠️ Please add at least one valid service or treatment before generating the invoice.</span>
+                </div>
             <% } else if ("save_failed".equals(errorParam)) { %>
-                <div class="alert alert-danger"><span>⚠️</span> <span>Failed to save invoice. Transaction rolled back. Please try again.</span></div>
+                <div class="alert alert-danger" style="margin-bottom: 20px; font-weight: 500;">
+                    <span>⚠️ Failed to save invoice. Transaction rolled back. Please try again.</span>
+                </div>
             <% } else if (errorParam != null) { %>
-                <div class="alert alert-danger"><span>⚠️</span> <span>Action could not be completed. Please check your data.</span></div>
+                <div class="alert alert-danger" style="margin-bottom: 20px; font-weight: 500;">
+                    <span>⚠️ Action could not be completed. Please check your data.</span>
+                </div>
             <% } %>
 
             <!-- Quick Appointment Lookup for billing -->
@@ -279,11 +295,12 @@
 
                             <div class="bill-calc-row">
                                 <span style="font-weight: 600; color: var(--text-dark);">Discount (Rs.):</span>
-                                <div>
+                                <div style="text-align: right;">
                                     <input type="number" step="0.01" min="0" id="discountInput" name="discount" 
-                                           class="form-control" style="width: 130px; text-align: right; font-weight: 600;" 
+                                           class="form-control" style="width: 140px; text-align: right; font-weight: 600; display: inline-block;" 
                                            value="<%= bill.getDiscount() != null ? bill.getDiscount() : "0.00" %>" 
-                                           oninput="calculateInvoiceTotals()" required>
+                                           oninput="calculateInvoiceTotals()" onchange="validateAndRejectDiscount(this)" required>
+                                    <div id="discountErrorMsg" style="display: none; color: #dc2626; font-size: 0.78rem; font-weight: 600; margin-top: 4px; max-width: 250px; text-align: right;"></div>
                                 </div>
                             </div>
 
@@ -299,12 +316,16 @@
                         <div class="grid-2" style="gap: 14px; margin-bottom: 20px;">
                             <div class="form-group">
                                 <label class="form-label" style="font-size: 0.85rem;">Payment Method <span class="required">*</span></label>
-                                <select name="paymentMethod" class="form-control" style="font-weight: 600;">
+                                <select name="paymentMethod" id="paymentMethodSelect" class="form-control" style="font-weight: 600;" required>
+                                    <option value="" disabled <%= (bill.getPaymentMethod() == null || bill.getPaymentMethod().trim().isEmpty()) ? "selected" : "" %>>-- Select Payment Method --</option>
                                     <option value="Cash" <%= "Cash".equalsIgnoreCase(bill.getPaymentMethod()) ? "selected" : "" %>>💵 Cash</option>
                                     <option value="Credit / Debit Card" <%= "Credit / Debit Card".equalsIgnoreCase(bill.getPaymentMethod()) ? "selected" : "" %>>💳 Credit / Debit Card</option>
                                     <option value="Bank Transfer" <%= "Bank Transfer".equalsIgnoreCase(bill.getPaymentMethod()) ? "selected" : "" %>>🏦 Bank Transfer</option>
                                     <option value="Insurance" <%= "Insurance".equalsIgnoreCase(bill.getPaymentMethod()) ? "selected" : "" %>>🛡️ Insurance</option>
                                 </select>
+                                <small id="paymentMethodHelp" style="display: block; margin-top: 4px; color: var(--text-muted); font-size: 0.8rem;">
+                                    Required: Select payment instrument before completing the bill.
+                                </small>
                             </div>
 
                             <div class="form-group">
@@ -510,20 +531,46 @@ function calculateInvoiceTotals() {
     });
 
     var discountInput = document.getElementById('discountInput');
+    var discountErrorMsg = document.getElementById('discountErrorMsg');
     var discount = 0;
+    var discountInvalid = false;
+
     if (discountInput) {
-        discount = parseFloat(discountInput.value) || 0;
-        if (discount < 0) {
+        var rawDiscount = discountInput.value.trim();
+        discount = parseFloat(rawDiscount);
+
+        if (rawDiscount === '' || isNaN(discount)) {
             discount = 0;
-            discountInput.value = '0.00';
-        }
-        if (discount > subTotal) {
-            discount = subTotal;
-            discountInput.value = subTotal.toFixed(2);
+            if (discountErrorMsg) {
+                discountErrorMsg.innerText = '⚠️ Please enter a valid discount amount.';
+                discountErrorMsg.style.display = 'block';
+            }
+            discountInput.style.borderColor = '#dc2626';
+            discountInvalid = true;
+        } else if (discount < 0) {
+            if (discountErrorMsg) {
+                discountErrorMsg.innerText = '⚠️ Discount cannot be negative.';
+                discountErrorMsg.style.display = 'block';
+            }
+            discountInput.style.borderColor = '#dc2626';
+            discountInvalid = true;
+        } else if (discount > subTotal) {
+            if (discountErrorMsg) {
+                discountErrorMsg.innerText = '⚠️ Discount (Rs. ' + discount.toFixed(2) + ') exceeds subtotal (Rs. ' + subTotal.toFixed(2) + '). Total cannot be negative.';
+                discountErrorMsg.style.display = 'block';
+            }
+            discountInput.style.borderColor = '#dc2626';
+            discountInvalid = true;
+        } else {
+            if (discountErrorMsg) {
+                discountErrorMsg.innerText = '';
+                discountErrorMsg.style.display = 'none';
+            }
+            discountInput.style.borderColor = '';
         }
     }
 
-    var total = subTotal - discount;
+    var total = subTotal - (discountInvalid ? 0 : discount);
     if (total < 0) total = 0;
 
     var subTotalDisplay = document.getElementById('subTotalDisplay');
@@ -533,7 +580,44 @@ function calculateInvoiceTotals() {
         subTotalDisplay.innerText = 'Rs. ' + subTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     }
     if (totalAmountDisplay) {
-        totalAmountDisplay.innerText = 'Rs. ' + total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        if (discountInvalid && discount > subTotal) {
+            totalAmountDisplay.innerText = 'Rs. 0.00 (Invalid Discount)';
+            totalAmountDisplay.style.color = '#dc2626';
+        } else {
+            totalAmountDisplay.innerText = 'Rs. ' + total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            totalAmountDisplay.style.color = '#065f46';
+        }
+    }
+}
+
+function validateAndRejectDiscount(input) {
+    if (!input) return;
+    var raw = input.value.trim();
+    var d = parseFloat(raw);
+
+    // Calculate current subtotal from row items
+    var rows = document.querySelectorAll('.item-row');
+    var subTotal = 0;
+    rows.forEach(function(row) {
+        var qty = parseInt(row.querySelector('.row-qty').value) || 0;
+        var price = parseFloat(row.querySelector('.row-unit-price').value) || 0;
+        subTotal += (qty * price);
+    });
+
+    if (raw === '' || isNaN(d) || d < 0) {
+        alert('⚠️ Validation Error: Discount cannot be negative or invalid. The discount has been rejected and reset to 0.00.');
+        input.value = '0.00';
+        calculateInvoiceTotals();
+        input.focus();
+        return;
+    }
+
+    if (d > subTotal) {
+        alert('⚠️ Validation Error: Discount (Rs. ' + d.toFixed(2) + ') exceeds the applicable amount (Rs. ' + subTotal.toFixed(2) + '). The discount has been rejected because the final bill total must never be negative.');
+        input.value = '0.00';
+        calculateInvoiceTotals();
+        input.focus();
+        return;
     }
 }
 
@@ -543,6 +627,8 @@ function validateInvoiceForm() {
         alert('Please add at least one service item.');
         return false;
     }
+
+    var computedSubTotal = 0;
 
     for (var i = 0; i < rows.length; i++) {
         var row = rows[i];
@@ -571,16 +657,38 @@ function validateInvoiceForm() {
             priceInput.focus();
             return false;
         }
+
+        computedSubTotal += (qty * price);
     }
 
+    // 1. Discount Validation
     var discountInput = document.getElementById('discountInput');
     if (discountInput) {
-        var d = parseFloat(discountInput.value);
-        if (isNaN(d) || d < 0) {
-            alert('Discount cannot be negative.');
+        var rawDiscount = discountInput.value.trim();
+        var d = parseFloat(rawDiscount);
+        if (rawDiscount === '' || isNaN(d)) {
+            alert('⚠️ Validation Error: Please enter a valid discount amount (enter 0.00 for no discount).');
             discountInput.focus();
             return false;
         }
+        if (d < 0) {
+            alert('⚠️ Validation Error: Discount cannot be negative.');
+            discountInput.focus();
+            return false;
+        }
+        if (d > computedSubTotal) {
+            alert('⚠️ Validation Error: The discount (Rs. ' + d.toFixed(2) + ') exceeds the applicable subtotal amount (Rs. ' + computedSubTotal.toFixed(2) + '). The final bill total must never be negative.');
+            discountInput.focus();
+            return false;
+        }
+    }
+
+    // 2. Payment Method Validation (Payment information must be selected before completing the bill)
+    var paymentMethodSelect = document.getElementById('paymentMethodSelect');
+    if (!paymentMethodSelect || !paymentMethodSelect.value || paymentMethodSelect.value.trim() === '') {
+        alert('⚠️ Validation Error: Payment information must be selected before the bill can be completed. Please select a valid payment method.');
+        if (paymentMethodSelect) paymentMethodSelect.focus();
+        return false;
     }
 
     return true;

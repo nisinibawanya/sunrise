@@ -8,6 +8,20 @@
     String nextApptNo = (String) request.getAttribute("nextApptNo");
     if (nextApptNo == null) nextApptNo = "A1006";
     String todayDate = LocalDate.now().toString();
+
+    // Form preservation values
+    String enteredPatientName = (String) request.getAttribute("enteredPatientName");
+    String enteredAddress = (String) request.getAttribute("enteredAddress");
+    String enteredContactNumber = (String) request.getAttribute("enteredContactNumber");
+    String enteredPatientEmail = (String) request.getAttribute("enteredPatientEmail");
+    Integer enteredDentistId = (Integer) request.getAttribute("enteredDentistId");
+    Integer enteredTreatmentId = (Integer) request.getAttribute("enteredTreatmentId");
+    String enteredApptDate = (String) request.getAttribute("enteredApptDate");
+    String enteredApptTime = (String) request.getAttribute("enteredApptTime");
+    String enteredNotes = (String) request.getAttribute("enteredNotes");
+
+    if (enteredApptDate == null) enteredApptDate = todayDate;
+    if (enteredApptTime == null) enteredApptTime = "09:00 AM";
 %>
 <!DOCTYPE html>
 <html lang="en">
@@ -36,9 +50,8 @@
             </div>
 
             <% String error = (String) request.getAttribute("errorMessage"); %>
-            <% if (error != null) { %>
-                <div class="alert alert-danger">
-                    <span>⚠️</span>
+            <% if (error != null && !error.isEmpty()) { %>
+                <div class="alert alert-danger" style="margin-bottom: 20px; font-weight: 500;">
                     <span><%= error %></span>
                 </div>
             <% } %>
@@ -61,22 +74,26 @@
 
                             <div class="form-group">
                                 <label class="form-label">Patient Name <span class="required">*</span></label>
-                                <input type="text" name="patientName" class="form-control" placeholder="e.g. Tharindu Weerasinghe" required>
+                                <input type="text" name="patientName" class="form-control" placeholder="e.g. Tharindu Weerasinghe" 
+                                       value="<%= enteredPatientName != null ? enteredPatientName : "" %>" required>
                             </div>
 
                             <div class="form-group">
                                 <label class="form-label">Address <span class="required">*</span></label>
-                                <input type="text" name="address" class="form-control" placeholder="e.g. 45, Flower Road, Colombo 07" required>
+                                <input type="text" name="address" class="form-control" placeholder="e.g. 45, Flower Road, Colombo 07" 
+                                       value="<%= enteredAddress != null ? enteredAddress : "" %>" required>
                             </div>
 
                             <div class="form-group">
                                 <label class="form-label">Contact Number <span class="required">*</span></label>
-                                <input type="tel" name="contactNumber" class="form-control" placeholder="e.g. 077 123 4567" required>
+                                <input type="tel" name="contactNumber" class="form-control" placeholder="e.g. 077 123 4567" 
+                                       value="<%= enteredContactNumber != null ? enteredContactNumber : "" %>" required>
                             </div>
 
                             <div class="form-group">
                                 <label class="form-label">Patient Email Address <span class="required">*</span></label>
-                                <input type="email" name="patientEmail" class="form-control" placeholder="e.g. patient@gmail.com" required>
+                                <input type="email" name="patientEmail" class="form-control" placeholder="e.g. patient@gmail.com" 
+                                       value="<%= enteredPatientEmail != null ? enteredPatientEmail : "" %>" required>
                                 <small style="display: block; margin-top: 4px; color: var(--primary); font-size: 0.8rem; font-weight: 500;">
                                     ✉️ Appointment confirmation (date, time &amp; doctor) will be sent to this email.
                                 </small>
@@ -88,22 +105,31 @@
                             <div class="form-group">
                                 <label class="form-label">Dentist Name <span class="required">*</span></label>
                                 <select name="dentistId" class="form-control" required>
-                                    <option value="" disabled>-- Select Dentist --</option>
-                                    <% if (dentists != null) { 
-                                        for (Dentist d : dentists) { %>
-                                        <option value="<%= d.getId() %>"><%= d.getName() %> (<%= d.getSpecialization() %>)</option>
+                                    <option value="" disabled <%= enteredDentistId == null ? "selected" : "" %>>-- Select Active Dentist --</option>
+                                    <% if (dentists != null && !dentists.isEmpty()) { 
+                                        for (Dentist d : dentists) { 
+                                            boolean selected = (enteredDentistId != null && enteredDentistId == d.getId());
+                                    %>
+                                        <option value="<%= d.getId() %>" <%= selected ? "selected" : "" %>><%= d.getName() %> (<%= d.getSpecialization() %>)</option>
                                     <%   } 
-                                       } %>
+                                       } else { %>
+                                        <option value="" disabled>No active dentists available</option>
+                                    <% } %>
                                 </select>
+                                <small style="display: block; margin-top: 4px; color: var(--text-muted); font-size: 0.8rem;">
+                                    ✓ Only active dentists accepting appointments are listed.
+                                </small>
                             </div>
 
                             <div class="form-group">
                                 <label class="form-label">Treatment Type <span class="required">*</span></label>
                                 <select name="treatmentId" id="treatmentSelect" class="form-control" required>
-                                    <option value="" disabled>-- Select Treatment --</option>
+                                    <option value="" disabled <%= enteredTreatmentId == null ? "selected" : "" %>>-- Select Treatment --</option>
                                     <% if (treatments != null) { 
-                                        for (Treatment t : treatments) { %>
-                                        <option value="<%= t.getId() %>" data-cost="<%= t.getCost() %>"><%= t.getName() %> - Rs. <%= t.getCost() %></option>
+                                        for (Treatment t : treatments) { 
+                                            boolean selected = (enteredTreatmentId != null && enteredTreatmentId == t.getId());
+                                    %>
+                                        <option value="<%= t.getId() %>" data-cost="<%= t.getCost() %>" <%= selected ? "selected" : "" %>><%= t.getName() %> - Rs. <%= t.getCost() %></option>
                                     <%   } 
                                        } %>
                                 </select>
@@ -111,19 +137,19 @@
 
                             <div class="form-group">
                                 <label class="form-label">Appointment Date <span class="required">*</span></label>
-                                <input type="date" name="appointmentDate" class="form-control" value="<%= todayDate %>" required>
+                                <input type="date" name="appointmentDate" class="form-control" value="<%= enteredApptDate %>" required>
                             </div>
 
                             <div class="form-group">
                                 <label class="form-label">Appointment Time <span class="required">*</span></label>
-                                <input type="text" name="appointmentTime" class="form-control" placeholder="e.g. 03:30 PM" value="03:30 PM" required>
+                                <input type="text" name="appointmentTime" class="form-control" placeholder="e.g. 03:30 PM" value="<%= enteredApptTime %>" required>
                             </div>
                         </div>
                     </div>
 
                     <div class="form-group" style="margin-top: 10px;">
                         <label class="form-label">Clinical Notes / Comments (Optional)</label>
-                        <textarea name="notes" class="form-control" rows="2" placeholder="Enter any medical history or special requests..."></textarea>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Enter any medical history or special requests..."><%= enteredNotes != null ? enteredNotes : "" %></textarea>
                     </div>
 
                     <div class="form-actions" style="justify-content: flex-start;">
@@ -139,3 +165,5 @@
 
 <jsp:include page="includes/exit-modal.jsp" />
 <jsp:include page="includes/footer.jsp" />
+</body>
+</html>

@@ -37,6 +37,6 @@ jobs:
         run: |
           java -jar lib/junit-platform-console-standalone-1.10.2.jar \
             execute \
-            --class-path "build/classes:lib/*:src/main/webapp/WEB-INF/lib/*" \
+            --class-path "build/classes:src/main/webapp/WEB-INF/lib/jakarta.servlet-api-6.0.0.jar:lib/*:src/main/webapp/WEB-INF/lib/*" \
             --scan-class-path \
             --fail-if-no-tests
